@@ -1,81 +1,111 @@
-# File: api/user_api.py
-
-import uuid
 import requests
-
-from config import LOGIN_URL
-from locators.locators import PasswordRecoveryPageLocators
-from pages.password_recovery_page import PasswordRecoveryPage
-
-BASE_URL = "https://stellarburgers.nomoreparties.site/api"
+import allure
+from config import API_ENDPOINTS, TEST_USER, MESSAGES
 
 
 class UserAPI:
-    """API client for user-related operations"""
+    # API client for user-related operations
 
     def __init__(self):
-        self.base_url = BASE_URL
+        self.base_url = API_ENDPOINTS["register"].replace("/auth/register", "")
         self.headers = {"Content-Type": "application/json"}
-        self.auth_token = None
+        self.access_token = None
+        self.refresh_token = None
 
-    def generate_test_user(self):
-        email = f"test_{uuid.uuid4()}@yandex.ru"
-        password = "123456"
-        name = "Test User"
-        return {"email": email, "password": password, "name": name}
-
+    @allure.step("API: Register user")
     def register_user(self, user_data):
-        response = requests.post(f"{self.base_url}/auth/register", json=user_data)
+        # Register a new user
+        response = requests.post(
+            API_ENDPOINTS["register"], json=user_data, headers=self.headers
+        )
         return response
 
-    def login_user(self, user_data):
-        response = requests.post(f"{self.base_url}/auth/login", json=user_data)
+    @allure.step("API: Login user")
+    def login_user(self, email, password):
+        # Login user and store tokens
+        login_data = {"email": email, "password": password}
+        response = requests.post(
+            API_ENDPOINTS["login"], json=login_data, headers=self.headers
+        )
         if response.status_code == 200:
-            self.auth_token = response.json()["accessToken"].split()[-1]
-            self.headers["Authorization"] = f"Bearer {self.auth_token}"
+            response_data = response.json()
+            self.access_token = response_data.get("accessToken")
+            self.refresh_token = response_data.get("refreshToken")
+            # Update headers for authenticated requests
+            if self.access_token:
+                self.headers["Authorization"] = self.access_token
         return response
 
+    @allure.step("API: Get user info")
+    def get_user_info(self):
+        # Get current user information
+        if not self.access_token:
+            raise Exception("User not authenticated")
+
+        response = requests.get(API_ENDPOINTS["user"], headers=self.headers)
+        return response
+
+    @allure.step("API: Update user info")
+    def update_user_info(self, user_data):
+        # Update user information
+        if not self.access_token:
+            raise Exception("User not authenticated")
+
+        response = requests.patch(
+            API_ENDPOINTS["user"], json=user_data, headers=self.headers
+        )
+        return response
+
+    @allure.step("API: Logout user")
+    def logout_user(self):
+        # Logout current user
+        if not self.refresh_token:
+            raise Exception("User not authenticated")
+
+        logout_data = {"token": self.refresh_token}
+        response = requests.post(
+            API_ENDPOINTS["logout"], json=logout_data, headers=self.headers
+        )
+
+        # Clear tokens
+        self.access_token = None
+        self.refresh_token = None
+        if "Authorization" in self.headers:
+            del self.headers["Authorization"]
+
+        return response
+
+    @allure.step("API: Delete user")
     def delete_user(self):
-        if self.auth_token:
-            return requests.delete(f"{self.base_url}/auth/user", headers=self.headers)
-        return None
+        # Delete current user account
+        if not self.access_token:
+            raise Exception("User not authenticated")
 
-    @staticmethod
-    def login_via_ui(driver, user_data):
-        from locators.locators import LoginPageLocators
+        response = requests.delete(API_ENDPOINTS["user"], headers=self.headers)
 
-        driver.get("LOGIN_URL")
-        driver.find_element(*LoginPageLocators.EMAIL_INPUT).send_keys(
-            user_data["email"]
-        )
-        driver.find_element(*LoginPageLocators.PASSWORD_INPUT).send_keys(
-            user_data["password"]
-        )
-        driver.find_element(*LoginPageLocators.LOGIN_BUTTON).click()
+        # Clear tokens after deletion
+        self.access_token = None
+        self.refresh_token = None
+        if "Authorization" in self.headers:
+            del self.headers["Authorization"]
 
+        return response
 
-def create_test_user():
-    def generate_email():
-        return f"test_{uuid.uuid4()}@yandex.ru"
+    @allure.step("API: Generate test user data")
+    def generate_test_user(self, email_suffix="test"):
+        # Generate unique test user data
+        import uuid
 
-    user = {
-        "email": generate_email(),
-        "password": "123456",
-        "name": "Test User"
-    }
-    requests.post(f"{BASE_URL}/auth/register", json=user)
-    return user
+        unique_id = str(uuid.uuid4())[:8]
 
+        from config import TEST_DATA
 
-def delete_test_user(user):
-    token = requests.post(f"{BASE_URL}/auth/login", json={
-        "email": user["email"], "password": user["password"]
-    }).json()["accessToken"].split()[-1]
-    headers = {"Authorization": f"Bearer {token}"}
-    requests.delete(f"{BASE_URL}/auth/user", headers=headers)
+        return {
+            "email": f"{email_suffix}_{unique_id}@{TEST_DATA['email_domain']}",
+            "password": TEST_USER["password"],
+            "name": f"Test User {unique_id}",
+        }
 
-def login(driver, user):
-    driver.get(LOGIN_URL)
-    driver.find_element(*PasswordRecoveryPageLocators.EMAIL_INPUT).send_keys(user["email"])
-    driver.find_element(*PasswordRecoveryPageLocators.PASSWORD_INPUT).send_keys(user["password"])
-    driver.find_element("xpath", "//button[text()='Войти']").click()
+    def is_authenticated(self):
+        # Check if user is currently authenticated
+        return self.access_token is not None
