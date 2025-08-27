@@ -1,6 +1,6 @@
 import requests
 import allure
-from config import API_ENDPOINTS, TEST_USER, MESSAGES
+from config import API_ENDPOINTS, TEST_USER
 
 
 class UserAPI:

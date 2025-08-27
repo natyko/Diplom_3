@@ -86,3 +86,25 @@ class BasePage:
         target = self.driver.find_element(*locator_target)
         action = ActionChains(self.driver)
         action.drag_and_drop(source, target).pause(5).perform()
+
+    @allure.step("Execute JavaScript on element")
+    def execute_script_on_element(self, script, element):
+        return self.driver.execute_script(script, element)
+
+    @allure.step("Find element by tag name and send keys")
+    def send_keys_to_tag(self, tag_name, keys):
+        return self.driver.find_element("tag name", tag_name).send_keys(keys)
+
+    @allure.step("Wait for element presence")
+    def wait_presence_of_element(self, locator, timeout=10):
+        return WebDriverWait(self.driver, timeout).until(
+            EC.presence_of_element_located(locator)
+        )
+
+    @allure.step("Create WebDriverWait with custom timeout")
+    def wait_with_timeout(self, timeout):
+        return WebDriverWait(self.driver, timeout)
+
+    @allure.step("Find elements")
+    def find_elements(self, locator):
+        return self.driver.find_elements(*locator)

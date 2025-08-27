@@ -56,7 +56,6 @@ class OrderAPI:
     @allure.step("API: Create test order with default ingredients")
     def create_test_order(self):
         # Create a test order with predefined ingredients
-        # Use predefined test ingredient IDs from config
         test_ingredients = TEST_DATA["ingredient_ids"]
         return self.create_order(test_ingredients)
 

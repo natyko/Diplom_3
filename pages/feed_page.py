@@ -1,5 +1,4 @@
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.by import By
 
 from locators.main_page_locators import MainPageLocators
@@ -14,15 +13,11 @@ class FeedPage(BasePage):
 
     @allure.step("Wait for feed page fully loaded ")
     def wait_for_page_to_load(self):
-        WebDriverWait(self.driver, 10).until(
-            EC.presence_of_element_located(self.main_page_locators.ORDER_ID)
-        )
+        self.wait_presence_of_element(self.main_page_locators.ORDER_ID)
 
     @allure.step("Wait for modal window")
     def wait_for_modal_to_open(self):
-        WebDriverWait(self.driver, 10).until(
-            EC.visibility_of_element_located(self.main_page_locators.MODAL_OPENED)
-        )
+        self.wait_visibility_of_element(self.main_page_locators.MODAL_OPENED)
 
     @allure.step("Button click feed")
     def click_on_feed(self):
@@ -79,15 +74,15 @@ class FeedPage(BasePage):
                 self.main_page_locators.MODAL_OPENED, timeout=5
             )
             # Use JavaScript to click the close button to avoid overlay issues
-            close_button = self.driver.find_element(
-                *self.main_page_locators.CLOSE_MODAL_WINDOW_BUTTON
+            close_button = self.find_element(
+                self.main_page_locators.CLOSE_MODAL_WINDOW_BUTTON
             )
-            self.driver.execute_script("arguments[0].click();", close_button)
+            self.execute_script_on_element("arguments[0].click();", close_button)
         except Exception:
             # Fallback: try pressing Escape key
             from selenium.webdriver.common.keys import Keys
 
-            self.driver.find_element("tag name", "body").send_keys(Keys.ESCAPE)
+            self.send_keys_to_tag("body", Keys.ESCAPE)
 
     @allure.step("Button click constructor current page")
     def click_on_constructor(self):
@@ -125,44 +120,12 @@ class FeedPage(BasePage):
             except (ValueError, TypeError):
                 return False
 
-        return WebDriverWait(self.driver, timeout).until(counter_increased)
+        return self.wait_with_timeout(timeout).until(counter_increased)
 
     @allure.step("Wait for specific order number in feed")
     def wait_for_specific_order_in_feed(self, expected_order_number, timeout=30):
-        # Wait for specific order number to appear in the 'В работе' section or any order section
-
-        def order_number_appears(driver):
-            try:
-                # Try multiple possible locators for orders in progress
-                possible_locators = [
-                    self.main_page_locators.ORDER_IN_PROCESS_IN_FEED,
-                    (
-                        By.XPATH,
-                        '//div[contains(@class, "OrderFeed_textBox")]/ul/li[contains(@class, "digits")]',
-                    ),
-                    (By.XPATH, '//li[contains(@class, "text_type_digits-default")]'),
-                    (By.XPATH, f'//*[text()="{expected_order_number}"]'),
-                    (By.XPATH, f'//*[contains(text(), "{expected_order_number}")]'),
-                ]
-
-                for locator in possible_locators:
-                    try:
-                        elements = driver.find_elements(*locator)
-                        for element in elements:
-                            element_text = element.text.strip()
-                            # Check if the text contains the order number
-                            if str(expected_order_number) in element_text:
-                                return True
-                            # Also try to parse as integer
-                            try:
-                                if int(element_text) == expected_order_number:
-                                    return True
-                            except (ValueError, TypeError):
-                                continue
-                    except Exception:
-                        continue
-                return False
-            except Exception:
-                return False
-
-        return WebDriverWait(self.driver, timeout).until(order_number_appears)
+        expected_text = str(expected_order_number).zfill(6)
+        specific_locator = (By.XPATH, f'//*[text()="{expected_text}"]')
+        return self.wait_with_timeout(timeout).until(
+            EC.presence_of_element_located(specific_locator)
+        )
